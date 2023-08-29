@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS transactions (
 	Transaction_ID			integer		PRIMARY KEY,
 	Customer_Card_ID		integer,
 	Transaction_Summ		numeric,
-	Transaction_DateTime	timestamp,
+	Transaction_DateTime	timestamp	WITHOUT time ZONE,
 	Transaction_Store_ID	integer,
 	
 	FOREIGN KEY (Customer_Card_ID) REFERENCES Cards (Customer_Card_ID)
@@ -34,4 +34,36 @@ COMMENT ON COLUMN transactions.Transaction_Summ 	IS 'Сумма транзакц
 COMMENT ON COLUMN transactions.Transaction_DateTime	IS 'Дата и время совершения транзакции';
 COMMENT ON COLUMN transactions.Transaction_ID 		IS 'Магазин, в котором была совершена транзакция';
 
+-- Таблица Группы SKU
+CREATE TABLE groups_sku (
+	Group_ID	integer	PRIMARY KEY,
+	Group_Name	varchar	CHECK (Group_Name ~ '^[A-zА-я0-9_\/\s-]+$')
+);
+
+-- Таблица Товарная матрица
+CREATE TABLE sku (
+	SKU_ID		integer	PRIMARY KEY,
+	SKU_Name	varchar	CHECK (sku_name ~ '^[A-zА-я0-9_\/\s-]+$'),
+	Group_ID	integer,
+	
+	FOREIGN KEY (Group_ID) REFERENCES Groups_SKU (Group_ID)
+);
+
+-- Таблица Чеки
+CREATE TABLE IF NOT EXISTS checks (
+	Transaction_ID	integer,
+	SKU_ID			integer,
+	SKU_Amount		numeric,
+	SKU_Summ		numeric,
+	SKU_Summ_Paid	numeric,
+	SKU_Discount	numeric,
+	
+    FOREIGN KEY (Transaction_ID) REFERENCES Transactions (Transaction_ID),
+    FOREIGN KEY (SKU_ID) REFERENCES SKU (SKU_ID)
+);
+COMMENT ON COLUMN checks.Transaction_ID	IS 'Идентификатор транзакции указывается для всех позиций в чеке';
+COMMENT ON COLUMN checks.SKU_Amount 	IS 'Указание, какое количество товара было куплено';
+COMMENT ON COLUMN checks.SKU_Summ		IS 'Сумма покупки фактического объема данного товара в рублях (полная стоимость без учета скидок и бонусов)';
+COMMENT ON COLUMN checks.SKU_Summ_Paid	IS 'Фактически оплаченная сумма покупки данного товара, не включая сумму предоставленной скидки';
+COMMENT ON COLUMN checks.SKU_Discount	IS 'Размер предоставленной на товар скидки в рублях';
 
