@@ -10,5 +10,12 @@ CREATE TABLE IF NOT EXISTS person_data (
 	Customer_Primary_Phone 	varchar CHECK (Customer_Primary_Phone ~ '^\+7\d{10}$')
 );
 
-
+-- Таблица Карты
+CREATE TABLE IF NOT EXISTS cards (
+	Customer_Card_ID	integer PRIMARY KEY,
+	Customer_ID			integer,
+	
+	FOREIGN KEY (Customer_ID) REFERENCES person_data (Customer_ID)
+);
+COMMENT ON COLUMN cards.Customer_ID IS 'Одному клиенту может принадлежать несколько карт';
 
