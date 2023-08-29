@@ -1,5 +1,5 @@
 -- Создание базы данных
---CREATE DATABASE sql3;
+-- CREATE DATABASE sql3;
 
 -- Таблица Персональные данные:
 CREATE TABLE IF NOT EXISTS person_data (
@@ -67,3 +67,20 @@ COMMENT ON COLUMN checks.SKU_Summ		IS 'Сумма покупки фактиче�
 COMMENT ON COLUMN checks.SKU_Summ_Paid	IS 'Фактически оплаченная сумма покупки данного товара, не включая сумму предоставленной скидки';
 COMMENT ON COLUMN checks.SKU_Discount	IS 'Размер предоставленной на товар скидки в рублях';
 
+-- Таблица торговые точки
+CREATE TABLE Stores (
+	Transaction_Store_ID	integer,
+	SKU_ID					integer,
+	SKU_Purchase_Price		numeric,
+	SKU_Retail_Price		numeric,
+    
+	FOREIGN KEY (Transaction_Store_ID) REFERENCES transactions(Transaction_ID),
+	FOREIGN KEY (SKU_ID) REFERENCES SKU (SKU_ID)
+);
+COMMENT ON COLUMN Stores.SKU_Purchase_Price IS 'Закупочная стоимость товара для данного магазина';
+COMMENT ON COLUMN Stores.SKU_Retail_Price IS 'Стоимость продажи товара без учета скидок для данного магазина';
+
+--Таблица Дата формирования анализа
+CREATE TABLE Date_Of_Analysis_Formation (
+	Analysis_Formation timestamp WITHOUT time ZONE
+);
