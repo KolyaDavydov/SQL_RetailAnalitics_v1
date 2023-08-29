@@ -19,3 +19,19 @@ CREATE TABLE IF NOT EXISTS cards (
 );
 COMMENT ON COLUMN cards.Customer_ID IS 'Одному клиенту может принадлежать несколько карт';
 
+-- Таблица Транзакции
+CREATE TABLE IF NOT EXISTS transactions (
+	Transaction_ID			integer		PRIMARY KEY,
+	Customer_Card_ID		integer,
+	Transaction_Summ		numeric,
+	Transaction_DateTime	timestamp,
+	Transaction_Store_ID	integer,
+	
+	FOREIGN KEY (Customer_Card_ID) REFERENCES Cards (Customer_Card_ID)
+);
+COMMENT ON COLUMN transactions.Transaction_ID 		IS 'Уникальное значение';
+COMMENT ON COLUMN transactions.Transaction_Summ 	IS 'Сумма транзакции в рублях (полная стоимость покупки без учета скидок)';
+COMMENT ON COLUMN transactions.Transaction_DateTime	IS 'Дата и время совершения транзакции';
+COMMENT ON COLUMN transactions.Transaction_ID 		IS 'Магазин, в котором была совершена транзакция';
+
+
