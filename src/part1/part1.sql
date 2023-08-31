@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS transactions (
 	Transaction_ID			integer		PRIMARY KEY,
 	Customer_Card_ID		integer,
 	Transaction_Summ		numeric,
-	Transaction_DateTime	timestamp	WITHOUT time ZONE,
+	Transaction_DateTime	timestamp,
 	Transaction_Store_ID	integer,
 	
 	FOREIGN KEY (Customer_Card_ID) REFERENCES Cards (Customer_Card_ID)
