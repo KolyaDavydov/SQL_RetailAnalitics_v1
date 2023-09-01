@@ -1,15 +1,19 @@
 SELECT rolname FROM pg_roles;
 
 -- Создаём групповые роли visitors_grp и admins_grp для облегчения управления
--- TODO добавить права на таблицы
+-- TODO  можно добавить права на отдельные таблицы
 CREATE OR REPLACE PROCEDURE proc_add_users_groups() 
 AS $$
 BEGIN
     CREATE ROLE visitors_grp NOLOGIN;
-    GRANT SELECT ON ALL TABLES IN SCHEMA public TO visitors_grp;
+    GRANT CONNECT ON DATABASE retail TO visitors_grp;
+    GRANT USAGE ON SCHEMA retail TO visitors_grp;
+    GRANT SELECT ON ALL TABLES IN SCHEMA retail TO visitors_grp;
     CREATE ROLE admins_grp NOLOGIN;
-    GRANT SELECT, UPDATE, INSERT, DELETE ON ALL TABLES IN SCHEMA public TO admins_grp;
-    -- GRANT USAGE ON SCHEMA public TO admins_grp;
+    GRANT CONNECT ON DATABASE retail TO admins_grp;
+    GRANT USAGE ON SCHEMA retail TO admins_grp;
+    GRANT EXECUTE ON SCHEMA retail TO admins_grp;
+    GRANT SELECT, UPDATE, INSERT, DELETE ON ALL TABLES IN SCHEMA retail TO admins_grp;
 END;
 $$ LANGUAGE plpgsql;
 
