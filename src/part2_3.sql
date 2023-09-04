@@ -2,7 +2,8 @@
 CREATE VIEW v_periods AS 
 WITH cust AS (SELECT Customer_ID, sku.Group_ID, MIN(transactions.transaction_datetime) AS First_Group_Purchase_Date,
 MAX(transactions.transaction_datetime) AS Last_Group_Purchase_Date,
-COUNT(transactions.transaction_datetime) AS Group_Purchase,  SUM(checks.sku_summ_paid) AS Group_Summ_Paid    
+COUNT(transactions.transaction_datetime) AS Group_Purchase,  SUM(checks.sku_summ_paid) AS Group_Summ_Paid, 
+MIN(checks.sku_discount/checks.sku_summ) AS Group_Min_Discount
 FROM transactions
 JOIN cards ON cards.customer_card_id = transactions.customer_card_id
 JOIN checks ON checks.transaction_id = transactions.transaction_id
@@ -12,7 +13,7 @@ WHERE stores.sku_id = checks.sku_id
 GROUP BY Customer_ID, sku.Group_ID
 ORDER BY Customer_ID, sku.Group_ID)
 SELECT cust.Customer_ID, Group_ID, First_Group_Purchase_Date, Last_Group_Purchase_Date, Group_Purchase, 
-EXTRACT(DAY FROM Last_Group_Purchase_Date-First_Group_Purchase_Date+'1 Day')/Group_Purchase AS Group_Frequency FROM cust;
+EXTRACT(DAY FROM Last_Group_Purchase_Date-First_Group_Purchase_Date+'1 Day')/Group_Purchase AS Group_Frequency, Group_Min_Discount FROM cust;
 
 SELECT * FROM v_periods;
 
