@@ -14,6 +14,8 @@ GROUP BY Customer_ID, sku.Group_ID
 ORDER BY Customer_ID, sku.Group_ID)
 SELECT cust.Customer_ID, Group_ID, First_Group_Purchase_Date, Last_Group_Purchase_Date, Group_Purchase, 
 EXTRACT(DAY FROM Last_Group_Purchase_Date-First_Group_Purchase_Date+'1 Day')/Group_Purchase AS Group_Frequency, Group_Min_Discount FROM cust;
+-- В случае отсутствия скидки по всем SKU группы указывается значение 0.
+-- Нужен CASE или так 0 оставить?
 
 SELECT * FROM v_periods;
 
