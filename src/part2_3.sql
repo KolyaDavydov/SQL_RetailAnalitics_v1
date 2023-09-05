@@ -2,8 +2,7 @@
 CREATE VIEW v_periods AS 
 WITH cust AS (SELECT Customer_ID, sku.Group_ID, MIN(transactions.transaction_datetime) AS First_Group_Purchase_Date,
 MAX(transactions.transaction_datetime) AS Last_Group_Purchase_Date,
-COUNT(transactions.transaction_datetime) AS Group_Purchase,  SUM(checks.sku_summ_paid) AS Group_Summ_Paid, 
-MIN(checks.sku_discount/checks.sku_summ) AS Group_Min_Discount
+COUNT(transactions.transaction_datetime) AS Group_Purchase, MIN(checks.sku_discount/checks.sku_summ) AS Group_Min_Discount
 FROM transactions
 JOIN cards ON cards.customer_card_id = transactions.customer_card_id
 JOIN checks ON checks.transaction_id = transactions.transaction_id
@@ -18,5 +17,7 @@ EXTRACT(DAY FROM Last_Group_Purchase_Date-First_Group_Purchase_Date+'1 Day')/Gro
 -- Нужен CASE или так 0 оставить?
 
 SELECT * FROM v_periods;
+
+SELECT sum(group_purchase) FROM v_periods; -- проверяем обработанное количество транзакций
 
 DROP VIEW v_periods;
