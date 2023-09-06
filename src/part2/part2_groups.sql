@@ -1,49 +1,51 @@
---CREATE VIEW v_purchase_history AS 
---SELECT
---	Customer_ID										AS Customer_ID,
---	transactions.transaction_id						AS Trnsaction_ID,
---	transaction_datetime							AS Transaction_datetime,
---	sku.Group_ID									AS Group_ID,
---	sum(stores.SKU_Purchase_Price*checks.SKU_Amount) AS Group_Cost,
---	sum(checks.sku_summ)							AS Group_Summ,
---	sum(checks.sku_summ_paid)						AS Group_Summ_Paid    
---FROM transactions
---JOIN cards ON cards.customer_card_id = transactions.customer_card_id
---JOIN checks ON checks.transaction_id = transactions.transaction_id
---JOIN sku ON sku.sku_id = checks.sku_id
---LEFT JOIN stores ON stores.transaction_store_id = transactions.transaction_store_id
---WHERE stores.sku_id = checks.sku_id
---GROUP BY Customer_ID, transactions.transaction_id, sku.Group_ID
---ORDER BY Customer_ID, transactions.transaction_id, transaction_datetime, sku.Group_ID;
---
---
---CREATE VIEW v_periods AS 
---	WITH cust AS
---	(SELECT
---		Customer_ID								AS Customer_ID,
---		sku.Group_ID							AS Group_ID,
---		MIN(transactions.transaction_datetime)	AS First_Group_Purchase_Date,
---		MAX(transactions.transaction_datetime)	AS Last_Group_Purchase_Date,
---		COUNT(transactions.transaction_datetime) AS Group_Purchase,
---		SUM(checks.sku_summ_paid)				AS Group_Summ_Paid, 
---		MIN(checks.sku_discount/checks.sku_summ) AS Group_Min_Discount
---	FROM transactions
---	JOIN cards ON cards.customer_card_id = transactions.customer_card_id
---	JOIN checks ON checks.transaction_id = transactions.transaction_id
---	JOIN sku ON sku.sku_id = checks.sku_id
---	LEFT JOIN stores ON stores.transaction_store_id = transactions.transaction_store_id
---	WHERE stores.sku_id = checks.sku_id
---	GROUP BY Customer_ID, sku.Group_ID
---	ORDER BY Customer_ID, sku.Group_ID)
---SELECT
---	cust.Customer_ID,
---	Group_ID,
---	First_Group_Purchase_Date,
---	Last_Group_Purchase_Date,
---	Group_Purchase,
---	EXTRACT(DAY FROM Last_Group_Purchase_Date-First_Group_Purchase_Date+'1 Day')/Group_Purchase AS Group_Frequency,
---	Group_Min_Discount
---FROM cust;
+--!!!! ПОДУМАТЬ НАД G_MARGIN - КАК можно ввести возможность выбора
+
+CREATE VIEW v_purchase_history AS 
+SELECT
+	Customer_ID											AS Customer_ID,
+	transactions.transaction_id							AS Trnsaction_ID,
+	transaction_datetime								AS Transaction_datetime,
+	sku.Group_ID										AS Group_ID,
+	sum(stores.SKU_Purchase_Price*checks.SKU_Amount)	AS Group_Cost,
+	sum(checks.sku_summ)								AS Group_Summ,
+	sum(checks.sku_summ_paid)							AS Group_Summ_Paid    
+FROM transactions
+JOIN cards ON cards.customer_card_id = transactions.customer_card_id
+JOIN checks ON checks.transaction_id = transactions.transaction_id
+JOIN sku ON sku.sku_id = checks.sku_id
+LEFT JOIN stores ON stores.transaction_store_id = transactions.transaction_store_id
+WHERE stores.sku_id = checks.sku_id
+GROUP BY Customer_ID, transactions.transaction_id, sku.Group_ID
+ORDER BY Customer_ID, transactions.transaction_id, transaction_datetime, sku.Group_ID;
+
+
+CREATE VIEW v_periods AS 
+	WITH cust AS (
+		SELECT
+			Customer_ID									AS Customer_id,
+			sku.Group_ID								AS Group_id,
+			MIN(transactions.transaction_datetime)		AS First_Group_Purchase_Date,
+			MAX(transactions.transaction_datetime)		AS Last_Group_Purchase_Date,
+			COUNT(transactions.transaction_datetime)	AS Group_Purchase,
+			MIN(checks.sku_discount/checks.sku_summ)	AS Group_Min_Discount
+	FROM transactions
+	JOIN cards ON cards.customer_card_id = transactions.customer_card_id
+	JOIN checks ON checks.transaction_id = transactions.transaction_id
+	JOIN sku ON sku.sku_id = checks.sku_id
+	LEFT JOIN stores ON stores.transaction_store_id = transactions.transaction_store_id
+	WHERE stores.sku_id = checks.sku_id
+	GROUP BY Customer_ID, sku.Group_ID
+	ORDER BY Customer_ID, sku.Group_ID)
+SELECT
+	cust.Customer_ID,
+	Group_ID,
+	First_Group_Purchase_Date,
+	Last_Group_Purchase_Date,
+	Group_Purchase,
+	EXTRACT(DAY FROM Last_Group_Purchase_Date-First_Group_Purchase_Date+'1 Day')/Group_Purchase AS Group_Frequency,
+	Group_Min_Discount
+FROM cust;
+
 
 CREATE VIEW v_groups AS
 	WITH
@@ -57,6 +59,7 @@ CREATE VIEW v_groups AS
 			First_Group_Purchase_Date таблицы Периоды) и меньше или
 			равна дате последней транзакции клиента с группой (значение поля
 			Last_Group_Purchase_Date таблицы Периоды)
+			
 			2) Количество транзакций с анализируемой группой
 			(значение поля Group_Purchase таблицы Периоды) делится на общее количество транзакций клиента,
 			совершенных с первой по последнюю транзакции, в которых была
@@ -84,6 +87,7 @@ CREATE VIEW v_groups AS
 		таблицы История покупок для записей, в которых значения полей
 		Customer_ID и Group_ID соответствуют значениям аналогичных полей
 		таблицы Группы.
+		
 		2) Количество дней, прошедших после
 		даты последней транзакции клиента с анализируемой группой, делится на среднее количество дней между покупками
 		анализируемой группы клиентом (значение поля Group_Frequency
@@ -148,7 +152,7 @@ CREATE VIEW v_groups AS
 			GROUP BY customer_id, group_id),
 			
 		/* АКТУАЛЬНАЯ МАРЖА ПО ГРУППЕ
-		 * 
+		 * !!! добавить возможность выбора расчета!!!
 		 * */
 		g_margin AS (
 			SELECT
@@ -156,18 +160,97 @@ CREATE VIEW v_groups AS
 				vph.group_id,
 				sum(vph.group_summ_paid-vph.group_cost)::NUMERIC AS Group_Margin
 			FROM v_purchase_history vph
-			GROUP BY vph.customer_id, vph.group_id)
+			GROUP BY vph.customer_id, vph.group_id),
+			
+		/* ОПРЕДЕЛЕНИЕ КОЛИЧЕСТВА ТРАНЗАКЦИЙ КЛИЕНТА СО СКИДКОЙ.
+		 * Определяется количество транзакций, в рамках которых анализируемая
+		группа была приобретена клиентом с применением какой-либо скидки.
+		Для подсчета используются уникальные значения по полю
+		Transaction_ID таблицы Чеки для транзакций, в рамках которых
+		клиент приобретал анализируемую группу, при этом значение поля
+		SKU_Discount таблицы Чеки больше нуля. Скидка,
+		представленная в рамках списания бонусных баллов, не учитывается.
+		 * */
+		g_amount_transaction AS (
+			SELECT DISTINCT
+				pd.customer_id,
+				s.group_id,
+				count(c2.transaction_id) FILTER (WHERE c2.sku_discount > 0) AS count_discont
+			FROM person_data pd
+			JOIN cards c ON pd.customer_id=c.customer_id
+			JOIN transactions t ON c.customer_card_id=t.customer_card_id
+			JOIN checks c2 ON t.transaction_id=c2.transaction_id
+			JOIN sku s ON s.sku_id=c2.sku_id
+			GROUP BY pd.customer_id, s.group_id),
+		/* ООПРЕДЕЛЕНИЕ ДОЛИ ТРАНЗАКЦИЙ СО СКИДКОЙ
+		 * Количество транзакций, в
+		рамках которых приобретение товаров из анализируемой группы было
+		совершено со скидкой делится на общее
+		количество транзакций клиента с анализируемой группой за
+		анализируемый период (данные поля Group_Purchase таблицы Периоды для анализируемой группы по клиенту). Получившееся значения
+		сохраняется в качестве доли транзакций по покупке анализируемой
+		группы со скидкой в поле Group_Discount_Share таблицы Группы.
+		 * */
+		g_discount_share AS (
+			SELECT
+				gat.customer_id,
+				gat.group_id,
+				gat.count_discont/vp.group_purchase::NUMERIC AS Group_Discount_Share
+			FROM g_amount_transaction gat
+			JOIN v_periods vp ON vp.customer_id = gat.customer_id AND vp.group_id = gat.group_id
+			GROUP BY gat.customer_id, gat.group_id, Group_Discount_Share),
+		/* ОПРЕДЕЛЕНИЕ МИНИМАЛЬНОГО РАЗМЕРА СКИДКИ ПО ГРУППЕ
+		 * Определяется
+		минимальный размер скидки по каждой группе для каждого клиента. Для
+		этого выбирается минимальное не равное нулю значение поля
+		Group_Min_Discount таблицы Периоды для заданных клиента и
+		группы. Результат сохраняется в поле Group_Minimum_Discount
+		таблицы Группы.
+		 * */
+		g_minimum_discount AS (
+			SELECT
+				customer_id,
+				group_id,
+				min(group_min_discount) FILTER (WHERE group_min_discount > 0) AS Group_Minimum_Discount
+			FROM v_periods
+			GROUP BY customer_id, group_id),
+		/* ОПРЕДЕЛЕНИЕ СРЕДНЕГО РАЗМЕРА СКИДКИ ПО ГРУППЕ
+		 * Для определения
+		среднего размера скидки по группе для клиента фактически оплаченная
+		сумма по покупке группы в рамках всех транзакций (значение поля
+		Group_Summ_Paid таблицы История покупок для всех транзакций)
+		делится на сумму розничной стоимости данной группы в рамках всех
+		транзакций (сумма по группе по значению поля Group_Summ таблицы
+		История покупок). В расчете участвуют только транзакции, в которых была предоставлена скидка.
+		Результат сохраняется в поле Group_Average_Discount таблицы Группы
+		 * */
+		g_average_discount AS (
+			SELECT
+				customer_id,
+				group_id,
+				group_summ_paid / group_summ AS Group_Average_Discount
+			FROM v_purchase_history
+			GROUP BY customer_id, group_id, Group_Average_Discount)
 	SELECT
 		gax.customer_id,
 		gax.group_id,
 		gax.group_affinity_index,
 		gcr.group_churn_rate,
 		gsi.group_stability_index,
-		gm.group_margin
+		gm.group_margin,
+		gds.group_discount_share,
+		gmd.group_minimum_discount,
+		gad.group_average_discount
 	FROM g_affinity_index gax
 	JOIN g_churn_rate gcr ON gcr.customer_id = gax.customer_id AND gcr.group_id = gax.group_id
 	JOIN g_stability_index gsi ON gsi.customer_id = gax.customer_id AND gsi.group_id = gax.group_id
-	JOIN g_margin gm ON gm.customer_id = gax.customer_id AND gm.group_id = gax.group_id;
+	JOIN g_margin gm ON gm.customer_id = gax.customer_id AND gm.group_id = gax.group_id
+	JOIN g_discount_share gds ON gds.customer_id=gax.customer_id AND gds.group_id=gax.group_id
+	JOIN g_minimum_discount gmd ON gmd.customer_id=gax.customer_id AND gmd.group_id=gax.group_id
+	JOIN g_average_discount gad ON gad.customer_id=gax.customer_id AND gad.group_id=gax.group_id;
 	
 SELECT * FROM v_groups;
-DROP VIEW v_groups;
+
+DROP VIEW v_purchase_history CASCADE;
+DROP VIEW v_periods CASCADE;
+--DROP VIEW v_groups; -- удаляется автоматически
