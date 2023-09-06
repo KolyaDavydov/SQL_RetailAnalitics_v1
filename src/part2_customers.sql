@@ -34,8 +34,62 @@ INSERT INTO Customer_Segment VALUES
 	(24, 'High', 'Occasionally', 'High'),
 	(25, 'High', 'Often', 'Low'),
 	(26, 'High', 'Often', 'Medium'),
-	(27, 'High', 'Often', 'High');	
+	(27, 'High', 'Often', 'High');
+	
+CREATE OR REPLACE FUNCTION customer_primary_store(IN in_customer_id INTEGER)
+RETURNS INTEGER AS $$
+DECLARE store_id INTEGER;
+DECLARE recent_store_id INTEGER;
+DECLARE no_of_most_recent_transactions_in_one_store INTEGER;
+	BEGIN
+		WITH count_store_visits AS (
+			SELECT customer_id, transaction_store_id, COUNT(transaction_store_id) AS visits
+			FROM transactions t
+			JOIN cards c ON t.customer_card_id = c.customer_card_id
+			WHERE customer_id = in_customer_id
+			GROUP BY 1, 2
+		)
+		SELECT transaction_store_id INTO store_id
+		FROM (
+			SELECT transaction_store_id, MAX(visits)
+			FROM count_store_visits
+			GROUP BY 1
+			ORDER BY 2 DESC
+			LIMIT 1
+		) a;
+		
+		WITH latest_transactions AS (
+			SELECT customer_id, transaction_store_id, transaction_datetime
+			FROM transactions t
+			JOIN cards c ON t.customer_card_id = c.customer_card_id
+			WHERE customer_id = in_customer_id
+			ORDER BY 1, 3 DESC
+		)
+		SELECT transaction_store_id INTO recent_store_id
+		FROM (SELECT * FROM latest_transactions LIMIT 1) a;
+		
+		WITH latest_transactions AS (
+			SELECT customer_id, transaction_store_id, transaction_datetime
+			FROM transactions t
+			JOIN cards c ON t.customer_card_id = c.customer_card_id
+			WHERE customer_id = in_customer_id
+			ORDER BY 1, 3 DESC
+		)
+		SELECT
+			COUNT(*) INTO no_of_most_recent_transactions_in_one_store
+		FROM (SELECT * FROM latest_transactions LIMIT 3) a
+		JOIN (SELECT * FROM latest_transactions LIMIT 1) b
+			ON a.transaction_store_id = b.transaction_store_id;
 
+		IF no_of_most_recent_transactions_in_one_store = 3 THEN
+			RETURN recent_store_id;
+		ELSE
+			RETURN store_id;
+		END IF;
+	END;
+$$ LANGUAGE plpgsql;
+
+CREATE VIEW v_customers AS
 WITH
     total_summ AS (
         SELECT
@@ -76,7 +130,8 @@ SELECT
 		WHEN Customer_Churn_Rate BETWEEN 2 AND 5 THEN 'Medium'
 		ELSE 'High'
 	END AS Customer_Churn_Segment,
-	cs.segment AS customer_segement
+	cs.segment AS customer_segement,
+	customer_primary_store(customer_id) AS customer_primary_store
 FROM (
 	SELECT
 		id AS Customer_ID,
@@ -133,30 +188,6 @@ JOIN Customer_Segment cs
 				ELSE 'High'
 			END
 		);
-
 		
--- 		WITH count_store_visits AS (
--- 	SELECT customer_id, transaction_store_id, COUNT(transaction_store_id) AS store_visit_count
--- 	FROM transactions t
--- 	JOIN cards c ON t.customer_card_id = c.customer_card_id
--- 	GROUP BY customer_id, transaction_store_id
--- 	ORDER BY 1
--- )
--- SELECT
--- 	customer_id,
--- 	transaction_store_id,
--- 	max
--- FROM (
--- 	SELECT
--- 		csv1.customer_id,
--- 		csv2.transaction_store_id,
--- 		MAX(csv1.store_visit_count)
--- 	-- SELECT *
--- 	FROM count_store_visits csv1
--- 	JOIN count_store_visits csv2
--- 		ON csv1.customer_id = csv2.customer_id
--- 	GROUP BY 1, 2
--- 	ORDER BY 1
--- ) q
--- GROUP BY 1,2 ,3
--- ORDER BY 1;
+SELECT * FROM v_customers;
+DROP VIEW v_customers;
