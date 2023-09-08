@@ -1,14 +1,14 @@
---!!!! ПОДУМАТЬ НАД G_MARGIN - КАК можно ввести возможность выбора
 
+DROP VIEW IF EXISTS v_purchase_history CASCADE;
 CREATE VIEW v_purchase_history AS 
 SELECT
-	Customer_ID											AS Customer_ID,
-	transactions.transaction_id							AS Trnsaction_ID,
-	transaction_datetime								AS Transaction_datetime,
-	sku.Group_ID										AS Group_ID,
-	sum(stores.SKU_Purchase_Price*checks.SKU_Amount)	AS Group_Cost,
-	sum(checks.sku_summ)								AS Group_Summ,
-	sum(checks.sku_summ_paid)							AS Group_Summ_Paid    
+	Customer_ID													AS Customer_ID,
+	transactions.transaction_id									AS Trnsaction_ID,
+	transaction_datetime										AS Transaction_datetime,
+	sku.Group_ID												AS Group_ID,
+	sum(stores.SKU_Purchase_Price*checks.SKU_Amount)::numeric	AS Group_Cost,
+	sum(checks.sku_summ)::numeric								AS Group_Summ,
+	sum(checks.sku_summ_paid)::numeric							AS Group_Summ_Paid    
 FROM transactions
 JOIN cards ON cards.customer_card_id = transactions.customer_card_id
 JOIN checks ON checks.transaction_id = transactions.transaction_id
@@ -18,34 +18,46 @@ WHERE stores.sku_id = checks.sku_id
 GROUP BY Customer_ID, transactions.transaction_id, sku.Group_ID
 ORDER BY Customer_ID, transactions.transaction_id, transaction_datetime, sku.Group_ID;
 
-
+DROP VIEW IF EXISTS v_periods CASCADE;
 CREATE VIEW v_periods AS 
-	WITH cust AS (
-		SELECT
-			Customer_ID									AS Customer_id,
-			sku.Group_ID								AS Group_id,
-			MIN(transactions.transaction_datetime)		AS First_Group_Purchase_Date,
-			MAX(transactions.transaction_datetime)		AS Last_Group_Purchase_Date,
-			COUNT(transactions.transaction_datetime)	AS Group_Purchase,
-			MIN(checks.sku_discount/checks.sku_summ)	AS Group_Min_Discount
-	FROM transactions
-	JOIN cards ON cards.customer_card_id = transactions.customer_card_id
-	JOIN checks ON checks.transaction_id = transactions.transaction_id
-	JOIN sku ON sku.sku_id = checks.sku_id
-	LEFT JOIN stores ON stores.transaction_store_id = transactions.transaction_store_id
-	WHERE stores.sku_id = checks.sku_id
-	GROUP BY Customer_ID, sku.Group_ID
-	ORDER BY Customer_ID, sku.Group_ID)
-SELECT
-	cust.Customer_ID,
-	Group_ID,
-	First_Group_Purchase_Date,
-	Last_Group_Purchase_Date,
-	Group_Purchase,
-	EXTRACT(DAY FROM Last_Group_Purchase_Date-First_Group_Purchase_Date+'1 Day')/Group_Purchase AS Group_Frequency,
-	Group_Min_Discount
-FROM cust;
+	WITH
+		cust AS (
+			SELECT  pd.customer_id, group_id, t.transaction_id, (sku_discount/sku_summ)::numeric as Group_Min_Discount
+			FROM person_data pd
+			JOIN cards c ON pd.customer_id = c.customer_id
+			JOIN transactions t ON c.customer_card_id = t.customer_card_id
+			JOIN checks c2 ON c2.transaction_id = t.transaction_id
+			JOIN sku s on c2.sku_id = s.sku_id
+			GROUP BY pd.customer_id, s.group_id, t.transaction_id, (sku_discount/sku_summ)::numeric
+			ORDER BY pd.customer_id ),
+		Date_First_Last_Purchase AS (
+			SELECT vph.customer_id, vph.group_id, min((transaction_datetime)) AS First_Group_Purchase_Date, max((transaction_datetime)) AS Last_Group_Purchase_Date,
+				count(vph.trnsaction_id) AS Group_Purchase
+			FROM v_purchase_history vph
+			GROUP BY vph.customer_id, vph.group_id
+			ORDER BY vph.customer_id, group_id ),
+		Frequency_Purchase AS (
+			SELECT d.customer_id, d.group_id, ((extract(epoch from Last_Group_Purchase_Date -  First_Group_Purchase_Date)/86400 + 1) / Group_Purchase)::numeric AS Group_Frequency
+			FROM Date_First_Last_Purchase d
+        )
+		SELECT 
+			D.Customer_ID,
+			D.Group_ID,
+			First_Group_Purchase_Date,
+			Last_Group_Purchase_Date,
+			Group_Purchase,
+			Group_Frequency,
+			CASE
+				WHEN max(group_min_discount) = 0 THEN 0
+				ELSE (min(Group_Min_Discount) FILTER ( WHERE group_min_discount > 0 ))
+			END AS Group_Min_Discount
+		FROM cust P
+		JOIN Date_First_Last_Purchase D ON D.customer_id = P.customer_id AND p.group_id = d.group_id
+		JOIN Frequency_Purchase F ON F.customer_id = D.customer_id AND f.group_id = p.group_id
+		GROUP BY D.group_id, d.customer_id, First_Group_Purchase_Date, Last_Group_Purchase_Date, Group_Purchase, Group_Frequency
+		ORDER BY D.customer_id, D.group_id;
 
+--!!!! ПОДУМАТЬ НАД G_MARGIN - КАК можно ввести возможность выбора
 DROP VIEW IF EXISTS v_groups CASCADE;
 CREATE VIEW v_groups AS
 	WITH
@@ -249,8 +261,7 @@ CREATE VIEW v_groups AS
 	JOIN g_minimum_discount gmd ON gmd.customer_id=gax.customer_id AND gmd.group_id=gax.group_id
 	JOIN g_average_discount gad ON gad.customer_id=gax.customer_id AND gad.group_id=gax.group_id;
 	
-SELECT * FROM v_groups
-LIMIT 10;;
+SELECT * FROM v_groups;
 
 --DROP VIEW v_purchase_history CASCADE;
 --DROP VIEW v_periods CASCADE;
