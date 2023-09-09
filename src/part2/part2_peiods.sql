@@ -22,7 +22,7 @@ CREATE MATERIALIZED VIEW v_periods AS
 			ORDER BY pd.customer_id ),
 		Date_First_Last_Purchase AS (
 			SELECT vph.customer_id, vph.group_id, min((transaction_datetime)) AS First_Group_Purchase_Date, max((transaction_datetime)) AS Last_Group_Purchase_Date,
-				count(vph.trnsaction_id) AS Group_Purchase
+				count(vph.transaction_id) AS Group_Purchase
 			FROM v_purchase_history vph
 			GROUP BY vph.customer_id, vph.group_id
 			ORDER BY vph.customer_id, group_id ),

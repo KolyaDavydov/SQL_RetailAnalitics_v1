@@ -13,7 +13,7 @@ DROP MATERIALIZED VIEW IF EXISTS v_purchase_history CASCADE;
 CREATE MATERIALIZED VIEW v_purchase_history AS 
 SELECT
 	Customer_ID													AS Customer_ID,
-	transactions.transaction_id									AS Trnsaction_ID,
+	transactions.transaction_id									AS Transaction_ID,
 	transaction_datetime										AS Transaction_datetime,
 	sku.Group_ID												AS Group_ID,
 	sum(stores.SKU_Purchase_Price*checks.SKU_Amount)::numeric	AS Group_Cost,
@@ -29,4 +29,4 @@ GROUP BY Customer_ID, transactions.transaction_id, sku.Group_ID
 ORDER BY Customer_ID, transactions.transaction_id, transaction_datetime, sku.Group_ID;
 
 -- для увеличения скорости обработки запросов
-CREATE INDEX pur_idx ON v_purchase_history (customer_id, group_id, trnsaction_id, transaction_datetime);
+CREATE INDEX pur_idx ON v_purchase_history (customer_id, group_id, transaction_id, transaction_datetime);

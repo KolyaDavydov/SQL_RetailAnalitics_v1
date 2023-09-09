@@ -38,7 +38,7 @@ CREATE MATERIALIZED VIEW v_groups AS
 			SELECT
 				vph.customer_id,
 				vp.group_id,
-				vp.group_purchase/count(vph.trnsaction_id)::NUMERIC AS group_affinity_index -- i_2
+				vp.group_purchase/count(vph.transaction_id)::NUMERIC AS group_affinity_index -- i_2
 			FROM v_purchase_history vph
 			JOIN v_periods vp ON vp.customer_id = vph.customer_id 
 			WHERE vph.transaction_datetime  BETWEEN vp.first_group_purchase_date AND vp.last_group_purchase_date --i_1
@@ -66,7 +66,7 @@ CREATE MATERIALIZED VIEW v_groups AS
 				vph.group_id,
 				(EXTRACT(epoch FROM(SELECT * FROM date_of_analysis_formation)) - EXTRACT(epoch FROM max(vph.transaction_datetime)))/(vp.group_frequency)/(60*60*24)::NUMERIC AS Group_Churn_Rate
 			FROM transactions t
-			JOIN v_purchase_history vph ON t.transaction_id = vph.trnsaction_id
+			JOIN v_purchase_history vph ON t.transaction_id = vph.transaction_id
 			JOIN v_periods vp ON vph.customer_id=vp.customer_id AND vph.group_id=vp.group_id
 			GROUP BY vph.customer_id, vph.group_id, vp.group_frequency),
 		/* ИНДЕКС СТАБИЛЬНОСТИ ПОТРЕБЛЕНИЯ ГРУППЫ
@@ -104,7 +104,7 @@ CREATE MATERIALIZED VIEW v_groups AS
 				ABS(EXTRACT(epoch FROM t.transaction_datetime - LAG(t.transaction_datetime, 1) OVER (PARTITION BY vp.customer_id, vp.group_id ORDER BY t.transaction_datetime))::float /
                               86400.0 - vp.group_frequency) / vp.group_frequency AS Group_Stability_Index_Not_Avg
 			FROM transactions t
-			JOIN v_purchase_history vph ON t.transaction_id = vph.trnsaction_id
+			JOIN v_purchase_history vph ON t.transaction_id = vph.transaction_id
 			JOIN v_periods vp ON vph.customer_id=vp.customer_id AND vph.group_id=vp.group_id
 			GROUP BY vp.customer_id, vp.group_id, t.transaction_datetime, vp.group_frequency),
 			
