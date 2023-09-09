@@ -1,53 +1,18 @@
---!!!! ПОДУМАТЬ НАД G_MARGIN - КАК можно ввести возможность выбора
+--!!!! Без возможности выбора метода для margin
 
-CREATE VIEW v_purchase_history AS 
-SELECT
-	Customer_ID											AS Customer_ID,
-	transactions.transaction_id							AS Trnsaction_ID,
-	transaction_datetime								AS Transaction_datetime,
-	sku.Group_ID										AS Group_ID,
-	sum(stores.SKU_Purchase_Price*checks.SKU_Amount)	AS Group_Cost,
-	sum(checks.sku_summ)								AS Group_Summ,
-	sum(checks.sku_summ_paid)							AS Group_Summ_Paid    
-FROM transactions
-JOIN cards ON cards.customer_card_id = transactions.customer_card_id
-JOIN checks ON checks.transaction_id = transactions.transaction_id
-JOIN sku ON sku.sku_id = checks.sku_id
-LEFT JOIN stores ON stores.transaction_store_id = transactions.transaction_store_id
-WHERE stores.sku_id = checks.sku_id
-GROUP BY Customer_ID, transactions.transaction_id, sku.Group_ID
-ORDER BY Customer_ID, transactions.transaction_id, transaction_datetime, sku.Group_ID;
+-- большой датасет:
+    -- время формирования представления  2,181 s
+    -- строк - 25245
+    -- сходимость хорошая. Не сходятся 
+    --                             - group_affinity_index
 
-
-CREATE VIEW v_periods AS 
-	WITH cust AS (
-		SELECT
-			Customer_ID									AS Customer_id,
-			sku.Group_ID								AS Group_id,
-			MIN(transactions.transaction_datetime)		AS First_Group_Purchase_Date,
-			MAX(transactions.transaction_datetime)		AS Last_Group_Purchase_Date,
-			COUNT(transactions.transaction_datetime)	AS Group_Purchase,
-			MIN(checks.sku_discount/checks.sku_summ)	AS Group_Min_Discount
-	FROM transactions
-	JOIN cards ON cards.customer_card_id = transactions.customer_card_id
-	JOIN checks ON checks.transaction_id = transactions.transaction_id
-	JOIN sku ON sku.sku_id = checks.sku_id
-	LEFT JOIN stores ON stores.transaction_store_id = transactions.transaction_store_id
-	WHERE stores.sku_id = checks.sku_id
-	GROUP BY Customer_ID, sku.Group_ID
-	ORDER BY Customer_ID, sku.Group_ID)
-SELECT
-	cust.Customer_ID,
-	Group_ID,
-	First_Group_Purchase_Date,
-	Last_Group_Purchase_Date,
-	Group_Purchase,
-	EXTRACT(DAY FROM Last_Group_Purchase_Date-First_Group_Purchase_Date+'1 Day')/Group_Purchase AS Group_Frequency,
-	Group_Min_Discount
-FROM cust;
-
-DROP VIEW IF EXISTS v_groups CASCADE;
-CREATE VIEW v_groups AS
+-- МАЛЫЙ ДАТАСЕТ:
+    -- время формирования представления  0,081 s
+    -- строк - 55
+    -- сходимость отличная 
+	
+DROP MATERIALIZED VIEW IF EXISTS v_groups CASCADE;
+CREATE MATERIALIZED VIEW v_groups AS
 	WITH
 		/* ИНДЕКС ВОСТРЕБОВАННОСТИ
 		 *  1) Определяется общее количество транзакций клиента, совершенных им между первой и
@@ -147,7 +112,7 @@ CREATE VIEW v_groups AS
 			SELECT
 				customer_id,
 				group_id,
-				avg(Group_Stability_Index_Not_Avg) AS Group_Stability_Index
+				COALESCE(avg(Group_Stability_Index_Not_Avg), 1) AS Group_Stability_Index
 			FROM g_stability
 			GROUP BY customer_id, group_id),
 			
@@ -249,9 +214,4 @@ CREATE VIEW v_groups AS
 	JOIN g_minimum_discount gmd ON gmd.customer_id=gax.customer_id AND gmd.group_id=gax.group_id
 	JOIN g_average_discount gad ON gad.customer_id=gax.customer_id AND gad.group_id=gax.group_id;
 	
-SELECT * FROM v_groups
-LIMIT 10;;
 
---DROP VIEW v_purchase_history CASCADE;
---DROP VIEW v_periods CASCADE;
---DROP VIEW v_groups; -- удаляется автоматически
