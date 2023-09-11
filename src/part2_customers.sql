@@ -43,7 +43,7 @@ DECLARE recent_store_id INTEGER;
 DECLARE no_of_most_recent_transactions_in_one_store INTEGER;
 	BEGIN
 		WITH count_store_visits AS (
-			SELECT customer_id, transaction_store_id, COUNT(transaction_store_id) AS visits
+			SELECT customer_id, transaction_store_id, COUNT(transaction_store_id) AS visits, MAX(transaction_datetime) AS most_recent
 			FROM transactions t
 			JOIN cards c ON t.customer_card_id = c.customer_card_id
 			WHERE customer_id = in_customer_id
@@ -51,12 +51,17 @@ DECLARE no_of_most_recent_transactions_in_one_store INTEGER;
 		)
 		SELECT transaction_store_id INTO store_id
 		FROM (
-			SELECT transaction_store_id, MAX(visits)
-			FROM count_store_visits
+			SELECT transaction_store_id, MAX(most_recent)
+			FROM (
+				SELECT transaction_store_id, most_recent, MAX(visits)
+				FROM count_store_visits
+				GROUP BY 1, 2
+				ORDER BY 3 DESC
+			) a
 			GROUP BY 1
-			ORDER BY 2 DESC
+			ORDER BY 1 DESC
 			LIMIT 1
-		) a;
+		) b;
 		
 		WITH latest_transactions AS (
 			SELECT customer_id, transaction_store_id, transaction_datetime
@@ -107,7 +112,7 @@ WITH
 			ROUND(
 				EXTRACT(epoch FROM (
 					MAX(transaction_datetime) - MIN(transaction_datetime))
-					/ NULLIF(COUNT(*) - 1, 0)
+					/ NULLIF(COUNT(*), 0)
 				) / (3600 * 24),
 				2
 			) AS avg_duration
@@ -187,7 +192,8 @@ JOIN Customer_Segment cs
 				WHEN Customer_Churn_Rate BETWEEN 2 AND 5 THEN 'Medium'
 				ELSE 'High'
 			END
-		);
+		)
+ORDER BY 1;
 		
 SELECT * FROM v_customers;
 DROP VIEW v_customers;
