@@ -4,15 +4,17 @@ CREATE OR REPLACE FUNCTION fnc_personal_offers_freq_visits(first_date timestamp,
 max_churn_idx int, max_share_trans_with_discount numeric, allow_margin_share numeric) 
 RETURNS TABLE(Customer_ID int, Start_Date timestamp, End_Date timestamp, Required_Transactions_Count numeric, Group_Name varchar, Offer_Discount_Depth numeric)
 AS $$ 
-WITH grp AS (SELECT customer_id, MAX(Group_Affinity_Index), Group_Margin, group_margin*allow_margin_share AS Offer_Discount_Depth
+WITH grp AS (SELECT customer_id, MAX(Group_Affinity_Index), Group_Margin, group_margin*allow_margin_share AS Offer_Discount_Depth, groups_sku.group_name,
+ceil(((v_groups.group_minimum_discount*100.)/5.0)*0.05 * abs(v_groups.group_margin)) AS Discount -- переделать на CASE
 FROM v_groups
+JOIN groups_sku ON groups_sku.group_id = v_groups.group_id
 WHERE v_groups.Customer_ID = Customer_ID AND Group_Churn_Rate <= max_churn_idx AND Group_Discount_Share < max_share_trans_with_discount
     AND abs(v_groups.group_margin  * allow_margin_share/100.) >= ceil((v_groups.group_minimum_discount*100.)/5.0)*0.05 * abs(v_groups.group_margin)
+    
 --    AND group_margin*allow_margin_share > group_minimum_discount
-GROUP BY v_groups.customer_id, Group_Margin)
+GROUP BY v_groups.customer_id, Group_Margin, groups_sku.group_name, v_groups.group_minimum_discount)
 SELECT v_customers.customer_id, first_date, last_date, 
-ROUND(EXTRACT(DAY FROM last_date-first_date)/customer_frequency)+transaction_num, customer_average_check_segment, 
-group_margin*allow_margin_share
+ROUND(EXTRACT(DAY FROM last_date-first_date)/customer_frequency)+transaction_num, grp.group_name, grp.Discount
 FROM v_customers
 JOIN grp ON grp.customer_id = v_customers.customer_id
 ORDER BY v_customers.customer_id;
@@ -27,7 +29,7 @@ $$ LANGUAGE sql;
 -- допустимая доля маржи (в процентах)
 
 SELECT *
-FROM fnc_personal_offers_freq_visits('2018-01-20', '2022-08-18', 10, 500, 0.5, 30);
+FROM fnc_personal_offers_freq_visits('2022-08-18', '2022-08-18', 1, 3, 70, 30);
 
 SELECT *
 FROM v_customers;
