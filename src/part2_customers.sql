@@ -51,15 +51,15 @@ DECLARE no_of_most_recent_transactions_in_one_store INTEGER;
 		)
 		SELECT transaction_store_id INTO store_id
 		FROM (
-			SELECT transaction_store_id, MAX(most_recent)
+			SELECT transaction_store_id, max_visits, MAX(most_recent)
 			FROM (
-				SELECT transaction_store_id, most_recent, MAX(visits)
+				SELECT transaction_store_id, most_recent, MAX(visits) AS max_visits
 				FROM count_store_visits
 				GROUP BY 1, 2
 				ORDER BY 3 DESC
 			) a
-			GROUP BY 1
-			ORDER BY 1 DESC
+			GROUP BY 1, 2
+			ORDER BY 2 DESC, 3 DESC
 			LIMIT 1
 		) b;
 		
@@ -86,7 +86,7 @@ DECLARE no_of_most_recent_transactions_in_one_store INTEGER;
 		JOIN (SELECT * FROM latest_transactions LIMIT 1) b
 			ON a.transaction_store_id = b.transaction_store_id;
 
-		IF no_of_most_recent_transactions_in_one_store = 3 THEN
+		IF no_of_most_recent_transactions_in_one_store >= 3 THEN
 			RETURN recent_store_id;
 		ELSE
 			RETURN store_id;
