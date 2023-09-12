@@ -3,11 +3,11 @@
 CREATE OR REPLACE FUNCTION fnc_personal_offers_freq_visits(first_date timestamp, last_date timestamp, transaction_num int, 
 max_churn_idx int, max_share_trans_with_discount numeric, allow_margin_share numeric) 
 RETURNS TABLE(Customer_ID int, Start_Date timestamp, End_Date timestamp, Required_Transactions_Count numeric, Group_Name varchar, Offer_Discount_Depth numeric)
--- AS $$ SELECT 1, '2023-01-01 00:00:00', '2023-02-01 00:00:00', 4, 'qq', 6 FROM checks;
 AS $$ 
 WITH grp AS (SELECT customer_id, MAX(Group_Affinity_Index), Group_Margin, group_margin*allow_margin_share AS Offer_Discount_Depth
 FROM v_groups
 WHERE v_groups.Customer_ID = Customer_ID AND Group_Churn_Rate <= max_churn_idx AND Group_Discount_Share < max_share_trans_with_discount
+    AND abs(v_groups.group_margin  * allow_margin_share/100.) >= ceil((v_groups.group_minimum_discount*100.)/5.0)*0.05 * abs(v_groups.group_margin)
 --    AND group_margin*allow_margin_share > group_minimum_discount
 GROUP BY v_groups.customer_id, Group_Margin)
 SELECT v_customers.customer_id, first_date, last_date, 
@@ -27,7 +27,7 @@ $$ LANGUAGE sql;
 -- допустимая доля маржи (в процентах)
 
 SELECT *
-FROM fnc_personal_offers_freq_visits('2018-01-20', '2022-08-18', 10, 500, 0.5, 10);
+FROM fnc_personal_offers_freq_visits('2018-01-20', '2022-08-18', 10, 500, 0.5, 30);
 
 SELECT *
 FROM v_customers;
