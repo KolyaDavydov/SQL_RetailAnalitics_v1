@@ -23,7 +23,7 @@ SET DATESTYLE to iso, DMY;
 --В АБСОЛЮТНОМ ПУТИ НЕ ДОЛЖНО БЫТЬ КИРРИЛИЦЫ инваче возможны проблемы!!!
 SET export_path.txt TO 'C:\Nikolay\CSV\';
 
--- заполняем данными таблицы из МАЛОГО датасета
+-- экспортируем таблицы датасета
 CALL export('Person_Data', (current_setting('export_path.txt') || 'Personal_Data_Mini.tsv')); -- 'curent_setting' - выдает текущее значение параметра
 CALL export('Cards', (current_setting('export_path.txt') || 'Cards_Mini.tsv'));
 CALL export('Transactions', (current_setting('export_path.txt') || 'Transactions_Mini.tsv'));

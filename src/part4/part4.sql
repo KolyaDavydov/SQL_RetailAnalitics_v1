@@ -49,7 +49,9 @@ CREATE OR REPLACE FUNCTION fn_check_measure_by_date(first_date date, last_date d
 		END IF;
 	RETURN query
 		WITH tmp AS (
-			SELECT Cards.customer_id, Transactions.transaction_summ
+			SELECT
+				Cards.customer_id,
+				Transactions.transaction_summ
 			FROM Cards
 			JOIN Transactions ON Cards.customer_card_id = transactions.customer_card_id
 			WHERE Transactions.transaction_datetime BETWEEN first_date AND last_date
@@ -76,20 +78,29 @@ CREATE OR REPLACE FUNCTION fn_check_measure_by_transaction(num_transactions inte
 	AS  $$
 	BEGIN
 	RETURN query
-		WITH tmp AS (
-			SELECT customer_card_id, transaction_summ
-			FROM Transactions
-			ORDER BY transaction_datetime DESC LIMIT num_transactions
-		)
-		SELECT Cards.customer_id, avg(transaction_summ) ::NUMERIC * coefficient AS required_check_measure
-		FROM tmp
-		JOIN Cards ON Cards.customer_card_id = tmp.customer_card_id
-		GROUP BY Cards.customer_id
-		ORDER BY 1;
+		WITH tmp1 AS (
+			SELECT
+				c.customer_id,
+				t.customer_card_id,
+				t.transaction_summ,
+				rank() OVER (PARTITION BY c.customer_id ORDER BY transaction_datetime DESC) AS ran
+			FROM Transactions t
+			JOIN Cards c ON c.customer_card_id = t.customer_card_id),
+		tmp2 AS (
+			SELECT
+				tmp1.customer_id,
+				customer_card_id,
+				transaction_summ
+			FROM tmp1
+			WHERE ran <= num_transactions)
+		SELECT DISTINCT
+			tmp2.customer_id,
+			(avg(transaction_summ) OVER (PARTITION BY tmp2.customer_id))::NUMERIC * coefficient AS avg_check
+		FROM tmp2;
 	END;
 $$ LANGUAGE plpgsql;
 
--- SELECT fn_check_measure_by_transaction(10, 1.0);
+-- SELECT fn_check_measure_by_transaction(100, 1.15);
 
 /* ОПРЕДЕЛЕНИЕ ГРУППЫ ДЛЯ ФОРМИРОВАНИЯ ВОЗНАГРАЖДЕНИЯ
  * Для формирования вознаграждения выбирается группа, отвечающая
@@ -127,29 +138,50 @@ RETURNS TABLE (
 	n_group_id integer,
 	offer_discount_depth NUMERIC)
 AS $$
+DECLARE
+	row RECORD;
+	person_id INTEGER := 0;
+	average_m NUMERIC;
+	tmp NUMERIC;
 	BEGIN
-		RETURN query (
-			WITH tmp AS (SELECT
-				v_groups.customer_id,
-				max(v_groups.group_affinity_index) AS maxi
-			FROM v_groups
-			WHERE group_churn_rate <= g_churn_rate AND group_discount_share < g_discount_share / 100.
-			GROUP BY customer_id
-			ORDER BY customer_id)
-			SELECT
-				vg.customer_id AS customer_id,
-				vg.group_id,
-				ceil((vg.group_minimum_discount*100.)/5.0)*5.0
-			--	vg.group_churn_rate,
-			--	vg.group_discount_share,
-			--	tmp.maxi
-			FROM v_groups vg
-			JOIN tmp ON vg.customer_id =tmp.customer_id AND vg.group_affinity_index = tmp.maxi
-			WHERE vg.group_churn_rate <= g_churn_rate AND vg.group_discount_share < g_discount_share / 100.
-			AND abs(vg.group_margin  * g_margin/100.) >= ceil((vg.group_minimum_discount*100.)/5.0)*0.05 * abs(vg.group_margin));
+	    FOR row IN (
+	    	SELECT
+	    		v_groups.customer_id,
+	    		v_groups.group_id,
+	    		group_affinity_index,
+	    		group_churn_rate,
+	    		group_discount_share,
+	    		group_minimum_discount,
+	    		dense_rank() OVER (PARTITION BY v_groups.customer_id ORDER BY group_affinity_index DESC)
+	    	FROM v_groups
+	    	WHERE group_churn_rate <= g_churn_rate AND group_discount_share < (g_discount_share / 100.0)
+	                ORDER BY customer_id, group_minimum_discount)
+	
+	    LOOP
+	    average_m = (SELECT avg(group_summ_paid - group_cost)
+	                 FROM v_purchase_history vph
+	                 WHERE vph.customer_id = row.customer_id
+	                 AND vph.group_id = row.group_id);
+	    tmp = (floor((row.group_minimum_discount * 100) / 5.0) * 5)::NUMERIC(10, 2);
+	    IF (person_id != row.customer_id) THEN
+	        IF (average_m > 0
+	            AND row.group_minimum_discount::numeric(10, 2) > 0
+	            AND average_m * g_margin / 100. > tmp * average_m / 100.) THEN
+	                IF (tmp = 0) THEN
+	                tmp = 5;
+	                END IF;
+	            RETURN QUERY (SELECT vg.customer_id, vg.group_id,
+	                          tmp AS Offer_Discount_Depth
+	                          FROM v_groups vg
+	                          WHERE row.customer_id = vg.customer_id AND
+	                                row.group_id = vg.group_id);
+	            person_id = row.customer_id;
+	        END IF;
+	    END IF;
+	    END LOOP;
 	END
 $$ LANGUAGE plpgsql;
---для проверки функции (на мини датасете 5 строк)
+--для проверки функции
 --SELECT fn_get_group(1.15, 70.0, 30.0);
 
 
@@ -221,6 +253,10 @@ END
 $$ LANGUAGE plpgsql;
 
 -- расчет по количеству последних транзакций - метод 2
-SELECT * FROM fn_main_part4(2, null, null,  100, 10, 3, 90, 30);
--- расчет по крайним датам - метод 1
-SELECT * FROM fn_main_part4(1, '2021-09-02', '2023-01-01',  100, 10, 3, 70, 30);
+SELECT * FROM fn_main_part4(2, null, null,  100, 1.15, 3, 70, 30);
+
+--3 669.56 "Колбаса" 5
+--1 1057.1 "Колбаса" 5
+--6 1212.97 "Автомобили" 5
+--19 1068.12 "Чипсы" 5
+--5 726.26 "Бумага" 15

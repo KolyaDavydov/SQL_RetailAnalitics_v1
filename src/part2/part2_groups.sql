@@ -212,6 +212,7 @@ CREATE MATERIALIZED VIEW v_groups AS
 	JOIN g_margin gm ON gm.customer_id = gax.customer_id AND gm.group_id = gax.group_id
 	JOIN g_discount_share gds ON gds.customer_id=gax.customer_id AND gds.group_id=gax.group_id
 	JOIN g_minimum_discount gmd ON gmd.customer_id=gax.customer_id AND gmd.group_id=gax.group_id
-	JOIN g_average_discount gad ON gad.customer_id=gax.customer_id AND gad.group_id=gax.group_id;
+	JOIN g_average_discount gad ON gad.customer_id=gax.customer_id AND gad.group_id=gax.group_id
+	order by 1,2;
 	
 
