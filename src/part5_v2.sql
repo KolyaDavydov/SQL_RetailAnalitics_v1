@@ -30,10 +30,3 @@ $$ LANGUAGE sql;
 
 SELECT *
 FROM fnc_personal_offers_freq_visits('2022-08-18', '2022-08-18', 1, 2, 50, 50);
-
-SELECT *
-FROM v_customers;
-
-SELECT MAX(Group_Affinity_Index), Group_Margin FROM v_groups
-WHERE v_groups.Customer_ID = Customer_ID AND Group_Churn_Rate <= max_churn_idx AND Group_Discount_Share < max_share_trans_with_discount
-GROUP BY Group_Margin;
