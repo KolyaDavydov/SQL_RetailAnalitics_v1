@@ -1,5 +1,7 @@
--- Создание базы данных
--- CREATE DATABASE sql3;
+-- Создание БД и подключение к ней
+-- 'psql -U postgres' (заходим в постгрес под пользователем postgres)
+-- 'CREATE DATABASE sql3;' (создаем базу данных)
+-- '\c sql3' (подключаемся к базе данных)
 
 -- Таблица Персональные данные:
 CREATE TABLE IF NOT EXISTS person_data (
