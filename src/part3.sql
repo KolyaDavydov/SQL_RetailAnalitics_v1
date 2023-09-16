@@ -1,3 +1,4 @@
+-- Active: 1692707583285@@127.0.0.1@5421@sql3
 SELECT rolname FROM pg_roles;
 
 -- Создаём групповые роли visitors_grp и admins_grp для облегчения управления
@@ -6,14 +7,15 @@ CREATE OR REPLACE PROCEDURE proc_add_users_groups()
 AS $$
 BEGIN
     CREATE ROLE visitors_grp NOLOGIN;
-    GRANT CONNECT ON DATABASE retail TO visitors_grp;
-    GRANT USAGE ON SCHEMA retail TO visitors_grp;
-    GRANT SELECT ON ALL TABLES IN SCHEMA retail TO visitors_grp;
+    GRANT CONNECT ON DATABASE sql3 TO visitors_grp;
+    GRANT USAGE ON SCHEMA PUBLIC TO visitors_grp;
+    GRANT SELECT ON ALL TABLES IN SCHEMA PUBLIC TO visitors_grp;
     CREATE ROLE admins_grp NOLOGIN;
-    GRANT CONNECT ON DATABASE retail TO admins_grp;
-    GRANT USAGE ON SCHEMA retail TO admins_grp;
-    GRANT EXECUTE ON SCHEMA retail TO admins_grp;
-    GRANT SELECT, UPDATE, INSERT, DELETE ON ALL TABLES IN SCHEMA retail TO admins_grp;
+    GRANT CONNECT ON DATABASE sql3 TO admins_grp;
+    GRANT USAGE ON SCHEMA PUBLIC TO admins_grp;
+    GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA PUBLIC TO admins_grp;
+    GRANT EXECUTE ON ALL PROCEDURES IN SCHEMA PUBLIC TO admins_grp;
+    GRANT SELECT, UPDATE, INSERT, DELETE ON ALL TABLES IN SCHEMA PUBLIC TO admins_grp;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -47,3 +49,6 @@ CALL proc_add_user('Visitor', '111_pass_super', 'Visitors',null);
 END;
 
 DROP ROLE Visitor;
+
+INSERT INTO groups_sku VALUES (21, 'name_21');
+DELETE FROM sku WHERE sku_id=21;
