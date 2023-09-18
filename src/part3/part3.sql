@@ -48,7 +48,8 @@ CALL proc_add_user('Administrator', 'super_pass111', 'Administrators',null);
 CALL proc_add_user('Visitor', '111_pass_super', 'Visitors',null);
 END;
 
-DROP ROLE Visitor;
+-- DROP ROLE Visitor;
 
-INSERT INTO groups_sku VALUES (21, 'name_21');
-DELETE FROM sku WHERE sku_id=21;
+-- Проверяем INSERT
+-- INSERT INTO groups_sku VALUES (21, 'name_21');
+-- DELETE FROM sku WHERE sku_id=21;
