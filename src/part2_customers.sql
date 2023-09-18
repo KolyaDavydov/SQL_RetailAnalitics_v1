@@ -122,7 +122,7 @@ WITH
 		GROUP BY customer_id
         ORDER BY 1
 	)
-SELECT
+SELECT DISTINCT
 	customer_id,
 	customer_average_check,
 	customer_average_check_segment,
