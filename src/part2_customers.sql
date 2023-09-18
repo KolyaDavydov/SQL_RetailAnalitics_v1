@@ -142,33 +142,49 @@ FROM (
 		id AS Customer_ID,
 		avg_check AS Customer_Average_Check,
 		CASE
-			WHEN q."percent" >= 0.90 THEN 'High'
-			WHEN q."percent" >= 0.65 THEN 'Medium'
+			WHEN customer_percent_rank >= 0.90 THEN 'High'
+			WHEN customer_percent_rank >= 0.65 THEN 'Medium'
 			ELSE 'Low'
 		END AS Customer_Average_Check_Segment,
 		Customer_Frequency,
 		CASE
-			WHEN y."percent" >= 0.90 THEN 'Often'
-			WHEN y."percent" >= 0.65 THEN 'Occasionally'
+			WHEN customer_frequency_rank >= 0.90 THEN 'Often'
+			WHEN customer_frequency_rank >= 0.65 THEN 'Occasionally'
 			ELSE 'Rarely'
 		END AS Customer_Frequency_Segment,
 		Customer_Inactive_Period,
 		ROUND(Customer_Inactive_Period / Customer_Frequency, 2) AS Customer_Churn_Rate
 	FROM (
-		SELECT id, avg_check,
-			ROUND(avg_check / max_check, 2) AS "percent"
-		FROM total_summ
-		JOIN (SELECT MAX(avg_check) AS max_check FROM total_summ) e
-		ON 1 = 1
+		SELECT
+			id,
+			avg_check,
+			PERCENT_RANK() OVER (
+				ORDER BY foo."percent"
+			) AS customer_percent_rank
+		FROM (
+			SELECT id, avg_check,
+				avg_check / max_check AS "percent"
+			FROM total_summ
+			JOIN (SELECT MAX(avg_check) AS max_check FROM total_summ) e
+			ON 1 = 1
+		) foo
 	) q
 	JOIN (
 		SELECT
 			customer_id,
-			avg_duration AS Customer_Frequency,
-			ROUND(min_duration / avg_duration, 2) AS "percent"
-		FROM customer_frequency
-		JOIN (SELECT MIN(avg_duration) AS min_duration FROM customer_frequency) u
-		ON 1 = 1
+			Customer_Frequency,
+			PERCENT_RANK() OVER (
+				ORDER BY foo2."percent"
+			) AS customer_frequency_rank
+			FROM (
+				SELECT
+				customer_id,
+				avg_duration AS Customer_Frequency,
+				min_duration / avg_duration AS "percent"
+			FROM customer_frequency
+			JOIN (SELECT MIN(avg_duration) AS min_duration FROM customer_frequency) u
+			ON 1 = 1
+			) foo2
 	) y ON y.customer_id = q.id
 	JOIN (
 		SELECT
